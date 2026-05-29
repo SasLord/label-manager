@@ -1,0 +1,1149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Label Manager</title>
+<!-- Шрифты: Tahoma встроена в Windows, используется и в интерфейсе, и в этикетках -->
+<link rel="stylesheet" href="global.css">
+<link rel="stylesheet" href="print.css">
+<!--
+  ШРИФТЫ: приложение использует Tahoma и Arial — стандартные шрифты Windows.
+  Интернет-соединение НЕ требуется. Все три файла должны лежать в одной папке:
+    label-manager.html
+    global.css
+    print.css
+-->
+</head>
+<body>
+
+<header>
+  <div class="logo">LABEL<span>MGR</span></div>
+  <div style="font-size:12px;opacity:0.5;margin-left:4px">v1.0</div>
+  <div class="header-actions">
+    <button onclick="exportJSON()">↓ Экспорт JSON</button>
+    <button onclick="document.getElementById('importFile').click()">↑ Импорт JSON</button>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+    <button onclick="document.getElementById('importAidaFiles').click()">⬆ Импорт AIDA</button>
+    <input type="file" id="importAidaFiles" accept=".htm,.html" multiple style="display:none" onchange="importAIDA(event)">
+    <button class="btn-print" onclick="showPrintView()">⎙ Печать выбранных</button>
+  </div>
+</header>
+
+<div class="sidebar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Устройства</div>
+    <div class="nav-item active" onclick="switchView('computers')" id="nav-computers">
+      <span class="nav-icon">🖥</span> Компьютеры
+      <span class="nav-count" id="count-computers">0</span>
+    </div>
+    <div class="nav-item" onclick="switchView('printers')" id="nav-printers">
+      <span class="nav-icon">🖨</span> Принтеры
+      <span class="nav-count" id="count-printers">0</span>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Фильтры</div>
+    <div class="nav-item" onclick="switchView('suspect')" id="nav-suspect">
+      <span class="nav-icon">⚠</span> Требуют проверки
+      <span class="nav-count" id="count-suspect" style="background:var(--amber-light);border-color:var(--amber);color:var(--amber)">0</span>
+    </div>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Выбрано</div>
+    <div class="selected-info" id="selected-info">
+      <strong id="selected-count">0 этикеток</strong>
+      <span id="selected-desc">Ничего не выбрано</span>
+    </div>
+    <button class="btn" style="width:100%;margin-top:8px;justify-content:center;font-size:12px" onclick="clearSelection()">Снять выделение</button>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-label">Данные</div>
+    <button class="btn btn-danger" style="width:100%;justify-content:center;font-size:12px" onclick="confirmClearAll()">Очистить всё</button>
+  </div>
+</div>
+
+<main>
+  <!-- COMPUTERS VIEW -->
+  <div class="view active" id="view-computers">
+    <div class="toolbar">
+      <h2>Компьютеры</h2>
+      <button class="btn" onclick="selectAll('computers')">Выбрать все</button>
+      <button class="btn" id="bulk-edit-computers" onclick="openBulkEdit('computer')" style="display:none">✏ Изменить выбранные</button>
+      <button class="btn btn-primary" onclick="openModal('computer')">+ Добавить</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="check-cell"><input type="checkbox" id="check-all-computers" onchange="toggleAll('computers',this)"></th>
+            <th>Имя</th>
+            <th>IP</th>
+            <th>MAC</th>
+            <th>ЦП</th>
+            <th>RAM</th>
+            <th>SSD</th>
+            <th>Инв. №</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="computers-tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="computers-empty" style="display:none">
+      <div style="font-size:32px">🖥</div>
+      <p>Нет компьютеров в базе. Нажмите «+ Добавить».</p>
+    </div>
+  </div>
+
+  <!-- PRINTERS VIEW -->
+  <div class="view" id="view-printers">
+    <div class="toolbar">
+      <h2>Принтеры</h2>
+      <button class="btn" onclick="selectAll('printers')">Выбрать все</button>
+      <button class="btn" id="bulk-edit-printers" onclick="openBulkEdit('printer')" style="display:none">✏ Изменить выбранные</button>
+      <button class="btn btn-primary" onclick="openModal('printer')">+ Добавить</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="check-cell"><input type="checkbox" id="check-all-printers" onchange="toggleAll('printers',this)"></th>
+            <th>Модель</th>
+            <th>Имя</th>
+            <th>IP</th>
+            <th>Серийный №</th>
+            <th>Инв. №</th>
+            <th>Действия</th>
+          </tr>
+        </thead>
+        <tbody id="printers-tbody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="printers-empty" style="display:none">
+      <div style="font-size:32px">🖨</div>
+      <p>Нет принтеров в базе. Нажмите «+ Добавить».</p>
+    </div>
+  </div>
+
+  <!-- SUSPECT VIEW -->
+  <div class="view" id="view-suspect">
+    <div class="toolbar">
+      <h2>Требуют проверки</h2>
+      <button class="btn" onclick="switchView(lastView)">← Назад</button>
+    </div>
+    <div style="font-size:13px;color:var(--amber);background:var(--amber-light);border:1px solid #e8c070;border-radius:var(--radius);padding:10px 14px;margin-bottom:16px">
+      Устройства, у которых при импорте из AIDA некоторые поля не прошли проверку. Отредактируйте запись вручную и сохраните — пометка снимется.
+    </div>
+    <div id="suspect-list"></div>
+    <div class="empty-state" id="suspect-empty" style="display:none">
+      <div style="font-size:32px">✅</div>
+      <p>Все записи корректны. Нет устройств, требующих проверки.</p>
+    </div>
+  </div>
+
+  <!-- PRINT VIEW -->
+  <div class="view" id="view-print">
+    <div class="preview-controls toolbar">
+      <h2>Предпросмотр печати</h2>
+      <button class="btn" onclick="switchView(lastView)">← Назад</button>
+      <button class="btn btn-primary" onclick="window.print()">⎙ Распечатать / PDF</button>
+    </div>
+    <div class="print-hint" style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      Диалог печати: установите <strong>без полей</strong>, масштаб 100%, формат A4.
+      Для экспорта PDF — выберите «Сохранить как PDF».
+    </div>
+    <div class="print-labels-container" id="print-labels-container"></div>
+  </div>
+</main>
+
+<!-- MODAL: Computer -->
+<div class="modal-overlay" id="modal-computer">
+  <div class="modal">
+    <h3 id="modal-computer-title">Добавить компьютер</h3>
+    <input type="hidden" id="computer-edit-id">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Имя *</label>
+        <input type="text" id="c-name" placeholder="1-10-5">
+      </div>
+      <div class="form-group">
+        <label>IP-адрес</label>
+        <input type="text" id="c-ip" placeholder="192.168.11.74" class="mono-input">
+      </div>
+      <div class="form-group form-full">
+        <label>MAC-адрес</label>
+        <input type="text" id="c-mac" placeholder="D8-43-AE-78-66-E2" class="mono-input">
+      </div>
+      <div class="form-divider" data-label="Комплектующие"></div>
+      <div class="form-group form-full">
+        <label>ЦП</label>
+        <input type="text" id="c-cpu" placeholder="Intel Core i5-12400, 4200 MHz">
+      </div>
+      <div class="form-group form-full">
+        <label>Материнская плата</label>
+        <input type="text" id="c-mb" placeholder="MSI Pro H610M-E DDR4 (MS-7D48)">
+      </div>
+      <div class="form-group">
+        <label>RAM</label>
+        <input type="text" id="c-ram" placeholder="16 Gb">
+      </div>
+      <div class="form-group">
+        <label>SSD</label>
+        <input type="text" id="c-ssd" placeholder="512 Gb">
+      </div>
+      <div class="form-divider" data-label="Идентификация"></div>
+      <div class="form-group form-full">
+        <label>Серийный №</label>
+        <input type="text" id="c-serial" placeholder="07D4822_O31E344009" class="mono-input">
+      </div>
+      <div class="form-group form-full">
+        <label>Инвентарный №</label>
+        <input type="text" id="c-inv" placeholder="SMU-31-00000123" class="mono-input">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('computer')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveComputer()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Printer -->
+<div class="modal-overlay" id="modal-printer">
+  <div class="modal">
+    <h3 id="modal-printer-title">Добавить принтер</h3>
+    <input type="hidden" id="printer-edit-id">
+    <div class="form-grid">
+      <div class="form-group form-full">
+        <label>Модель *</label>
+        <input type="text" id="p-model" placeholder="Kyocera ECOSYS M2375dnKX">
+      </div>
+      <div class="form-group">
+        <label>Имя</label>
+        <input type="text" id="p-name" placeholder="KM956366" class="mono-input">
+      </div>
+      <div class="form-group">
+        <label>IP-адрес</label>
+        <input type="text" id="p-ip" placeholder="192.168.11.233" class="mono-input">
+      </div>
+      <div class="form-divider" data-label="Идентификация"></div>
+      <div class="form-group form-full">
+        <label>Серийный №</label>
+        <input type="text" id="p-serial" placeholder="R5M9731347" class="mono-input">
+      </div>
+      <div class="form-group form-full">
+        <label>Инвентарный №</label>
+        <input type="text" id="p-inv" placeholder="SMU-31-00000053" class="mono-input">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('printer')">Отмена</button>
+      <button class="btn btn-primary" onclick="savePrinter()">Сохранить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Bulk Edit Computer -->
+<div class="modal-overlay" id="modal-bulk-computer">
+  <div class="modal">
+    <h3 id="modal-bulk-computer-title">Массовое редактирование компьютеров</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;padding:8px 10px;background:var(--accent-light);border-radius:var(--radius)">
+      Оставьте поле пустым — значение не изменится. Заполненное поле будет применено ко всем выбранным устройствам.
+    </div>
+    <div class="form-grid">
+      <div class="form-divider" data-label="Комплектующие"></div>
+      <div class="form-group form-full">
+        <label>ЦП</label>
+        <input type="text" id="bulk-c-cpu" placeholder="оставьте пустым — не менять">
+      </div>
+      <div class="form-group form-full">
+        <label>Материнская плата</label>
+        <input type="text" id="bulk-c-mb" placeholder="оставьте пустым — не менять">
+      </div>
+      <div class="form-group">
+        <label>RAM</label>
+        <input type="text" id="bulk-c-ram" placeholder="оставьте пустым — не менять">
+      </div>
+      <div class="form-group">
+        <label>SSD</label>
+        <input type="text" id="bulk-c-ssd" placeholder="оставьте пустым — не менять">
+      </div>
+      <div class="form-divider" data-label="Сеть"></div>
+      <div class="form-group">
+        <label>IP-адрес</label>
+        <input type="text" id="bulk-c-ip" placeholder="оставьте пустым — не менять" class="mono-input">
+      </div>
+      <div class="form-group">
+        <label>Инвентарный №</label>
+        <input type="text" id="bulk-c-inv" placeholder="оставьте пустым — не менять" class="mono-input">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('bulk-computer')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveBulkEdit('computer')">Применить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Bulk Edit Printer -->
+<div class="modal-overlay" id="modal-bulk-printer">
+  <div class="modal">
+    <h3 id="modal-bulk-printer-title">Массовое редактирование принтеров</h3>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:16px;padding:8px 10px;background:var(--accent-light);border-radius:var(--radius)">
+      Оставьте поле пустым — значение не изменится. Заполненное поле будет применено ко всем выбранным устройствам.
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>IP-адрес</label>
+        <input type="text" id="bulk-p-ip" placeholder="оставьте пустым — не менять" class="mono-input">
+      </div>
+      <div class="form-group">
+        <label>Инвентарный №</label>
+        <input type="text" id="bulk-p-inv" placeholder="оставьте пустым — не менять" class="mono-input">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('bulk-printer')">Отмена</button>
+      <button class="btn btn-primary" onclick="saveBulkEdit('printer')">Применить</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: AIDA Import Review -->
+<div class="modal-overlay" id="modal-aida-review">
+  <div class="modal" style="width:660px;max-width:95vw">
+    <h3>Импорт из AIDA64 — проверка</h3>
+    <div id="aida-review-body" style="max-height:55vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('aida-review')">Отмена</button>
+      <button class="btn btn-primary" onclick="confirmAidaImport()">Импортировать всё</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DATA =====
+let db = { computers: [], printers: [] };
+let selected = new Set(); // "computer:id" | "printer:id"
+let lastView = 'computers';
+
+function loadDB() {
+  try {
+    const s = localStorage.getItem('labelmanager_db');
+    if (s) db = JSON.parse(s);
+    if (!db.computers) db.computers = [];
+    if (!db.printers) db.printers = [];
+  } catch(e) { db = { computers: [], printers: [] }; }
+}
+function saveDB() {
+  localStorage.setItem('labelmanager_db', JSON.stringify(db));
+  updateCounts();
+  updateSelectedInfo();
+}
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+// ===== NAVIGATION =====
+function switchView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  const nav = document.getElementById('nav-' + name);
+  if (nav) nav.classList.add('active');
+  if (name !== 'print') lastView = name;
+  if (name === 'computers') renderComputers();
+  if (name === 'printers') renderPrinters();
+  if (name === 'suspect') renderSuspect();
+}
+
+// ===== COUNTS =====
+function updateCounts() {
+  document.getElementById('count-computers').textContent = db.computers.length;
+  document.getElementById('count-printers').textContent = db.printers.length;
+  const suspectCount = [...db.computers, ...db.printers].filter(x => x._suspect).length;
+  document.getElementById('count-suspect').textContent = suspectCount;
+}
+
+// ===== SELECTION =====
+function toggleSelect(type, id) {
+  const key = type + ':' + id;
+  if (selected.has(key)) selected.delete(key);
+  else selected.add(key);
+  updateSelectedInfo();
+  updateRowHighlight(type, id);
+  const pluralType = type === 'computer' ? 'computers' : 'printers';
+  updateBulkEditBtn(pluralType);
+}
+function updateRowHighlight(type, id) {
+  const row = document.getElementById('row-' + type + '-' + id);
+  if (!row) return;
+  const key = type + ':' + id;
+  row.classList.toggle('selected', selected.has(key));
+  const cb = row.querySelector('input[type=checkbox]');
+  if (cb) cb.checked = selected.has(key);
+}
+function updateSelectedInfo() {
+  const n = selected.size;
+  document.getElementById('selected-count').textContent = n + ' этикеток';
+  if (n === 0) document.getElementById('selected-desc').textContent = 'Ничего не выбрано';
+  else {
+    const comps = [...selected].filter(k=>k.startsWith('computer:')).length;
+    const prs = [...selected].filter(k=>k.startsWith('printer:')).length;
+    let parts = [];
+    if (comps) parts.push(comps + ' компьютер' + (comps>1?'ов':''));
+    if (prs) parts.push(prs + ' принтер' + (prs>1?'ов':''));
+    document.getElementById('selected-desc').textContent = parts.join(', ');
+  }
+}
+function toggleAll(type, masterCb) {
+  const items = type === 'computers' ? db.computers : db.printers;
+  items.forEach(item => {
+    const key = type.replace('computers','computer').replace('printers','printer') + ':' + item.id;
+    // singular type
+    const singType = type === 'computers' ? 'computer' : 'printer';
+    const k = singType + ':' + item.id;
+    if (masterCb.checked) selected.add(k);
+    else selected.delete(k);
+  });
+  if (type === 'computers') renderComputers();
+  else renderPrinters();
+  updateSelectedInfo();
+}
+function selectAll(type) {
+  const singType = type === 'computers' ? 'computer' : 'printer';
+  const items = type === 'computers' ? db.computers : db.printers;
+  items.forEach(item => selected.add(singType + ':' + item.id));
+  if (type === 'computers') renderComputers();
+  else renderPrinters();
+  updateSelectedInfo();
+}
+function clearSelection() {
+  selected.clear();
+  renderComputers();
+  renderPrinters();
+  updateSelectedInfo();
+}
+
+// ===== RENDER TABLES =====
+function renderComputers() {
+  const tbody = document.getElementById('computers-tbody');
+  const empty = document.getElementById('computers-empty');
+  const wrap = tbody.closest('.table-wrap');
+  if (!db.computers.length) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    updateBulkEditBtn('computers');
+    return;
+  }
+  wrap.style.display = '';
+  empty.style.display = 'none';
+  const masterCb = document.getElementById('check-all-computers');
+  masterCb.checked = db.computers.length > 0 && db.computers.every(c => selected.has('computer:' + c.id));
+
+  tbody.innerHTML = db.computers.map(c => {
+    const sel = selected.has('computer:' + c.id);
+    const suspectBadge = c._suspect
+      ? `<span title="Требует проверки" style="color:var(--amber);font-size:13px;margin-left:4px">⚠</span>` : '';
+    return `<tr id="row-computer-${c.id}" class="${sel?'selected':''}" onclick="toggleSelect('computer','${c.id}')">
+      <td class="check-cell" onclick="event.stopPropagation()">
+        <input type="checkbox" ${sel?'checked':''} onchange="toggleSelect('computer','${c.id}')">
+      </td>
+      <td><strong>${esc(c.name)}</strong>${suspectBadge}</td>
+      <td class="mono">${esc(c.ip||'—')}</td>
+      <td class="mono">${esc(c.mac||'—')}</td>
+      <td style="font-size:12px">${esc(c.cpu||'—')}</td>
+      <td class="mono">${esc(c.ram||'—')}</td>
+      <td class="mono">${esc(c.ssd||'—')}</td>
+      <td class="mono">${esc(c.inv||'—')}</td>
+      <td class="actions-cell" onclick="event.stopPropagation()">
+        <button class="btn btn-sm" onclick="editComputer('${c.id}')">✏</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteComputer('${c.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+  updateBulkEditBtn('computers');
+}
+
+function renderPrinters() {
+  const tbody = document.getElementById('printers-tbody');
+  const empty = document.getElementById('printers-empty');
+  const wrap = tbody.closest('.table-wrap');
+  if (!db.printers.length) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    updateBulkEditBtn('printers');
+    return;
+  }
+  wrap.style.display = '';
+  empty.style.display = 'none';
+  const masterCb = document.getElementById('check-all-printers');
+  masterCb.checked = db.printers.length > 0 && db.printers.every(p => selected.has('printer:' + p.id));
+
+  tbody.innerHTML = db.printers.map(p => {
+    const sel = selected.has('printer:' + p.id);
+    const suspectBadge = p._suspect
+      ? `<span title="Требует проверки" style="color:var(--amber);font-size:13px;margin-left:4px">⚠</span>` : '';
+    return `<tr id="row-printer-${p.id}" class="${sel?'selected':''}" onclick="toggleSelect('printer','${p.id}')">
+      <td class="check-cell" onclick="event.stopPropagation()">
+        <input type="checkbox" ${sel?'checked':''} onchange="toggleSelect('printer','${p.id}')">
+      </td>
+      <td><strong>${esc(p.model)}</strong>${suspectBadge}</td>
+      <td class="mono">${esc(p.name||'—')}</td>
+      <td class="mono">${esc(p.ip||'—')}</td>
+      <td class="mono">${esc(p.serial||'—')}</td>
+      <td class="mono">${esc(p.inv||'—')}</td>
+      <td class="actions-cell" onclick="event.stopPropagation()">
+        <button class="btn btn-sm" onclick="editPrinter('${p.id}')">✏</button>
+        <button class="btn btn-sm btn-danger" onclick="deletePrinter('${p.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+  updateBulkEditBtn('printers');
+}
+
+// ===== MODAL =====
+function openModal(type) {
+  clearForm(type);
+  document.getElementById('modal-' + type + '-title').textContent =
+    type === 'computer' ? 'Добавить компьютер' : 'Добавить принтер';
+  document.getElementById(type === 'computer' ? 'computer-edit-id' : 'printer-edit-id').value = '';
+  document.getElementById('modal-' + type).classList.add('open');
+}
+function closeModal(type) {
+  document.getElementById('modal-' + type).classList.remove('open');
+}
+function clearForm(type) {
+  if (type === 'computer') {
+    ['c-name','c-ip','c-mac','c-cpu','c-mb','c-ram','c-ssd','c-serial','c-inv'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+  } else {
+    ['p-model','p-name','p-ip','p-serial','p-inv'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+  }
+}
+
+// ===== COMPUTERS CRUD =====
+function saveComputer() {
+  const name = document.getElementById('c-name').value.trim();
+  if (!name) { toast('Введите имя компьютера'); return; }
+  const editId = document.getElementById('computer-edit-id').value;
+  const obj = {
+    id: editId || genId(),
+    name, ip: v('c-ip'), mac: v('c-mac'),
+    cpu: v('c-cpu'), mb: v('c-mb'), ram: v('c-ram'), ssd: v('c-ssd'),
+    serial: v('c-serial'), inv: v('c-inv')
+    // _suspect намеренно не включаем — ручное редактирование снимает пометку
+  };
+  if (editId) {
+    const idx = db.computers.findIndex(c => c.id === editId);
+    if (idx >= 0) db.computers[idx] = obj;
+  } else {
+    db.computers.push(obj);
+  }
+  saveDB(); renderComputers(); closeModal('computer');
+  toast(editId ? 'Компьютер обновлён' : 'Компьютер добавлен');
+}
+function editComputer(id) {
+  const c = db.computers.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('computer-edit-id').value = c.id;
+  document.getElementById('modal-computer-title').textContent = 'Редактировать компьютер';
+  ['name','ip','mac','cpu','mb','ram','ssd','serial','inv'].forEach(f => {
+    const el = document.getElementById('c-' + f);
+    if (el) el.value = c[f] || '';
+  });
+  document.getElementById('modal-computer').classList.add('open');
+}
+function deleteComputer(id) {
+  if (!confirm('Удалить компьютер?')) return;
+  db.computers = db.computers.filter(c => c.id !== id);
+  selected.delete('computer:' + id);
+  saveDB(); renderComputers(); updateSelectedInfo();
+  toast('Удалено');
+}
+
+// ===== PRINTERS CRUD =====
+function savePrinter() {
+  const model = document.getElementById('p-model').value.trim();
+  if (!model) { toast('Введите модель принтера'); return; }
+  const editId = document.getElementById('printer-edit-id').value;
+  const obj = {
+    id: editId || genId(),
+    model, name: v('p-name'), ip: v('p-ip'),
+    serial: v('p-serial'), inv: v('p-inv')
+    // _suspect намеренно не включаем — ручное редактирование снимает пометку
+  };
+  if (editId) {
+    const idx = db.printers.findIndex(p => p.id === editId);
+    if (idx >= 0) db.printers[idx] = obj;
+  } else {
+    db.printers.push(obj);
+  }
+  saveDB(); renderPrinters(); closeModal('printer');
+  toast(editId ? 'Принтер обновлён' : 'Принтер добавлен');
+}
+function editPrinter(id) {
+  const p = db.printers.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('printer-edit-id').value = p.id;
+  document.getElementById('modal-printer-title').textContent = 'Редактировать принтер';
+  ['model','name','ip','serial','inv'].forEach(f => {
+    const el = document.getElementById('p-' + f);
+    if (el) el.value = p[f] || '';
+  });
+  document.getElementById('modal-printer').classList.add('open');
+}
+function deletePrinter(id) {
+  if (!confirm('Удалить принтер?')) return;
+  db.printers = db.printers.filter(p => p.id !== id);
+  selected.delete('printer:' + id);
+  saveDB(); renderPrinters(); updateSelectedInfo();
+  toast('Удалено');
+}
+
+// ===== LABEL HTML GENERATORS =====
+//
+// Этикетки формируются как HTML-div, а не SVG.
+// Ширина фиксирована через CSS (--lbl-width: 42mm).
+// Высота — автоматическая, текст переносится нативно.
+// Шрифт: Tahoma — системный Windows, интернет не нужен.
+//
+// Структура этикетки:
+//   .lbl
+//     .lbl-bar          — цветная полоска слева
+//     .lbl-body
+//       .lbl-title      — Имя / Модель (жирный)
+//       hr.lbl-divider
+//       .lbl-table      — двухколоночная таблица
+//         .lbl-row
+//           .lbl-key    — метка (IP, MAC, ЦП…)  фикс. ширина
+//           .lbl-val    — значение, перенос автоматический
+//       hr.lbl-divider
+//       ...
+
+// Экранирование HTML
+function h(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Одна строка таблицы: метка + значение
+function row(key, val, valClass) {
+  const cls = valClass ? ` class="lbl-val ${valClass}"` : ' class="lbl-val"';
+  return `<div class="lbl-row">` +
+         `<div class="lbl-key">${h(key)}</div>` +
+         `<div${cls}>${h(val)}</div>` +
+         `</div>`;
+}
+
+// ── Компьютер ──────────────────────────────────────────────
+function computerLabelHTML(c) {
+  return `
+<div class="lbl lbl-pc">
+  <div class="lbl-bar"></div>
+  <div class="lbl-body">
+    <div class="lbl-title">${h(c.name || '—')}</div>
+    <hr class="lbl-divider">
+    <div class="lbl-table">
+      ${row('IP',  c.ip  || '', 'accent-pc')}
+      ${row('MAC', c.mac || '', 'accent-pc')}
+    </div>
+    <hr class="lbl-divider">
+    <div class="lbl-table">
+      ${row('ЦП',  c.cpu || '', 'bold')}
+      ${row('M/B', c.mb  || '', 'muted')}
+      ${row('RAM', c.ram || '', 'bold')}
+      ${row('SSD', c.ssd || '', 'bold')}
+    </div>
+    <hr class="lbl-divider">
+    <div class="lbl-table">
+      ${row('S/N', c.serial || '')}
+      ${row('ИНВ', c.inv    || '', 'bold accent-pc')}
+    </div>
+  </div>
+</div>`.trim();
+}
+
+// ── Принтер ────────────────────────────────────────────────
+function printerLabelHTML(p) {
+  return `
+<div class="lbl lbl-pr">
+  <div class="lbl-bar"></div>
+  <div class="lbl-body">
+    <div class="lbl-title">${h(p.model || '—')}</div>
+    <hr class="lbl-divider">
+    <div class="lbl-table">
+      ${row('Имя', p.name || '', 'accent-pr')}
+      ${row('IP',  p.ip   || '', 'accent-pr')}
+    </div>
+    <hr class="lbl-divider">
+    <div class="lbl-table">
+      ${row('S/N', p.serial || '')}
+      ${row('ИНВ', p.inv    || '', 'bold accent-pr')}
+    </div>
+  </div>
+</div>`.trim();
+}
+
+// ===== PRINT VIEW =====
+function showPrintView() {
+  if (selected.size === 0) {
+    toast('Выберите хотя бы одну этикетку');
+    return;
+  }
+  const printContainer = document.getElementById('print-labels-container');
+  printContainer.innerHTML = '';
+
+  selected.forEach(key => {
+    const [type, id] = key.split(':');
+    let html = '';
+
+    if (type === 'computer') {
+      const item = db.computers.find(c => c.id === id);
+      if (!item) return;
+      html = computerLabelHTML(item);
+    } else {
+      const item = db.printers.find(p => p.id === id);
+      if (!item) return;
+      html = printerLabelHTML(item);
+    }
+
+    printContainer.insertAdjacentHTML('beforeend', html);
+  });
+
+  switchView('print');
+}
+
+// ===== IMPORT / EXPORT =====
+function exportJSON() {
+  const data = JSON.stringify(db, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'labelmanager-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Экспортировано');
+}
+function importJSON(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (imported.computers || imported.printers) {
+        if (confirm(`Импортировать? Это добавит данные к существующим.\nКомпьютеры: ${(imported.computers||[]).length}, Принтеры: ${(imported.printers||[]).length}`)) {
+          // Merge: add items not already present by id
+          (imported.computers || []).forEach(c => {
+            if (!db.computers.find(x => x.id === c.id)) db.computers.push(c);
+          });
+          (imported.printers || []).forEach(p => {
+            if (!db.printers.find(x => x.id === p.id)) db.printers.push(p);
+          });
+          saveDB(); renderComputers(); renderPrinters();
+          toast('Импортировано успешно');
+        }
+      } else {
+        toast('Неверный формат файла');
+      }
+    } catch(err) { toast('Ошибка чтения файла'); }
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function confirmClearAll() {
+  if (confirm('Очистить всю базу данных? Это действие необратимо.')) {
+    db = { computers: [], printers: [] };
+    selected.clear();
+    saveDB(); renderComputers(); renderPrinters(); updateSelectedInfo();
+    toast('База очищена');
+  }
+}
+
+// ===== UTILS =====
+function v(id) { return document.getElementById(id).value.trim(); }
+function esc(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ===== BULK EDIT =====
+function updateBulkEditBtn(type) {
+  const singType = type === 'computers' ? 'computer' : 'printer';
+  const count = [...selected].filter(k => k.startsWith(singType + ':')).length;
+  const btn = document.getElementById('bulk-edit-' + type);
+  if (btn) btn.style.display = count >= 2 ? '' : 'none';
+}
+
+function openBulkEdit(singType) {
+  const modalId = 'modal-bulk-' + singType;
+  // Clear fields
+  document.querySelectorAll('#' + modalId + ' input[type=text]').forEach(el => el.value = '');
+  const count = [...selected].filter(k => k.startsWith(singType + ':')).length;
+  document.getElementById(modalId + '-title').textContent =
+    `Массовое редактирование — ${count} ${singType === 'computer' ? 'компьютеров' : 'принтеров'}`;
+  document.getElementById(modalId).classList.add('open');
+}
+
+function saveBulkEdit(singType) {
+  const modalId = 'modal-bulk-' + singType;
+  const ids = [...selected].filter(k => k.startsWith(singType + ':')).map(k => k.split(':')[1]);
+  if (!ids.length) { closeModal('bulk-' + singType); return; }
+
+  const fields = singType === 'computer'
+    ? ['cpu','mb','ram','ssd','ip','inv']
+    : ['ip','inv'];
+
+  const changes = {};
+  fields.forEach(f => {
+    const val = document.getElementById('bulk-' + (singType === 'computer' ? 'c' : 'p') + '-' + f).value.trim();
+    if (val) changes[f] = val;
+  });
+
+  if (!Object.keys(changes).length) {
+    toast('Нет изменений — все поля пусты');
+    return;
+  }
+
+  const arr = singType === 'computer' ? db.computers : db.printers;
+  ids.forEach(id => {
+    const idx = arr.findIndex(x => x.id === id);
+    if (idx >= 0) Object.assign(arr[idx], changes);
+  });
+
+  saveDB();
+  if (singType === 'computer') renderComputers();
+  else renderPrinters();
+  closeModal('bulk-' + singType);
+  toast(`Обновлено ${ids.length} записей`);
+}
+
+// ===== SUSPECT VIEW =====
+function renderSuspect() {
+  const list = document.getElementById('suspect-list');
+  const empty = document.getElementById('suspect-empty');
+  const suspects = [
+    ...db.computers.filter(x => x._suspect).map(x => ({...x, _type: 'computer'})),
+    ...db.printers.filter(x => x._suspect).map(x => ({...x, _type: 'printer'}))
+  ];
+
+  if (!suspects.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  list.innerHTML = suspects.map(item => {
+    const typeLabel = item._type === 'computer' ? 'Компьютер' : 'Принтер';
+    const title = item._type === 'computer' ? item.name : item.model;
+    const suspectFields = (item._suspectFields || []).join(', ');
+    return `<div style="background:var(--surface);border:1px solid #e8c070;border-left:3px solid var(--amber);border-radius:var(--radius);padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px">
+      <span style="font-size:20px">${item._type === 'computer' ? '🖥' : '🖨'}</span>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${esc(title||'—')} <span style="font-weight:400;color:var(--text3);font-size:11px">${typeLabel}</span></div>
+        ${suspectFields ? `<div style="font-size:11px;color:var(--amber);margin-top:2px">Поля под вопросом: ${esc(suspectFields)}</div>` : ''}
+      </div>
+      <button class="btn btn-sm" onclick="editComputer('${item.id}');switchView('computers')" ${item._type !== 'computer' ? 'style="display:none"' : ''}>✏ Исправить</button>
+      <button class="btn btn-sm" onclick="editPrinter('${item.id}');switchView('printers')" ${item._type !== 'printer' ? 'style="display:none"' : ''}>✏ Исправить</button>
+    </div>`;
+  }).join('');
+}
+
+// ===== AIDA64 IMPORT =====
+
+// Значения-мусор, которые AIDA пишет когда производитель не указал данные
+const AIDA_JUNK = [
+  'default string', 'to be filled by o.e.m.', 'not specified',
+  'unknown', 'none', 'n/a', 'o.e.m.', 'oem',
+  'system product name', 'system manufacturer', 'base board product',
+  '0', '', '-'
+];
+function isJunk(val) {
+  if (!val) return true;
+  return AIDA_JUNK.includes(val.trim().toLowerCase());
+}
+
+// Читаем текстовое содержимое ячейки-значения рядом с ячейкой-меткой.
+// В AIDA-отчёте строки выглядят так:
+//   <TR><TD><TD><TD>Метка&nbsp;&nbsp;<TD>Значение
+// Парсим через DOMParser, ищем по тексту в TD.
+function parseAidaTable(doc) {
+  // Возвращаем Map: "ключ в нижнем регистре" → "значение"
+  const map = new Map();
+  doc.querySelectorAll('tr').forEach(tr => {
+    const tds = tr.querySelectorAll('td');
+    if (tds.length < 2) return;
+    // Последние два TD — метка и значение
+    const keyTd  = tds[tds.length - 2];
+    const valTd  = tds[tds.length - 1];
+    const key = keyTd.textContent.replace(/\u00a0/g,' ').trim();
+    const val = valTd.textContent.replace(/\u00a0/g,' ').trim();
+    if (key && val) map.set(key.toLowerCase(), val);
+  });
+  return map;
+}
+
+// Достать первое совпадение по массиву ключей
+function mapGet(map, ...keys) {
+  for (const k of keys) {
+    for (const [mk, mv] of map) {
+      if (mk.includes(k.toLowerCase())) return mv;
+    }
+  }
+  return '';
+}
+
+// Нормализация RAM: "16165 МБ" → "16 Gb", "32 ГБ" → "32 Gb"
+function normalizeRAM(raw) {
+  if (!raw) return '';
+  const mb = raw.match(/(\d+)\s*[МM][Бб]/i);
+  if (mb) return Math.round(parseInt(mb[1]) / 1024) + ' Gb';
+  const gb = raw.match(/(\d+)\s*[ГG][Бб]/i);
+  if (gb) return gb[1] + ' Gb';
+  return raw;
+}
+
+// Нормализация SSD/HDD: "Patriot P210 512GB (512 ГБ, SATA-III)" → "512 Gb"
+function normalizeStorage(raw) {
+  if (!raw) return '';
+  // Ищем "(NNN ГБ" или "(NNN GB"
+  const m = raw.match(/\((\d+)\s*[ГGгg][Бб]/i);
+  if (m) return m[1] + ' Gb';
+  // Или прямо "512GB"
+  const m2 = raw.match(/(\d+)\s*GB/i);
+  if (m2) return m2[1] + ' Gb';
+  const m3 = raw.match(/(\d+)\s*[ГGгg][Бб]/i);
+  if (m3) return m3[1] + ' Gb';
+  return raw;
+}
+
+// Нормализация CPU: убрать лишний хвост из AIDA ("HexaCore Intel Core i5-12400, 2500 MHz")
+// Оставляем всё — это нормальный формат
+function normalizeCPU(raw) {
+  if (!raw) return '';
+  // Убираем ссылку если есть (иногда textContent содержит href-текст)
+  return raw.replace(/https?:\/\/\S+/g, '').trim();
+}
+
+// Нормализация M/B: убрать длинный хвост с перечнем слотов
+function normalizeMB(raw) {
+  if (!raw) return '';
+  // Убрать хвост "(1 PCI-E x1, ...)" и ссылки
+  return raw.replace(/\s*\(1 PCI.*$/i, '').replace(/https?:\/\/\S+/g, '').trim();
+}
+
+// Валидация IP
+function isValidIP(ip) {
+  return /^(\d{1,3}\.){3}\d{1,3}$/.test(ip.trim());
+}
+// Валидация MAC
+function isValidMAC(mac) {
+  return /^([0-9A-F]{2}[-:]){5}[0-9A-F]{2}$/i.test(mac.trim());
+}
+
+// Основная функция разбора одного AIDA HTML файла
+// Возвращает { record, suspectFields }
+function parseAidaFile(text) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'text/html');
+  const map = parseAidaTable(doc);
+
+  // --- Имя компьютера ---
+  // Ищем "имя компьютера" / "компьютер" в шапке (значение в строке где "Компьютер  <TD>1-02-1")
+  let name = mapGet(map, 'имя компьютера', 'компьютер', 'computer');
+  if (!name) {
+    // fallback: из <TITLE>
+    const titleMatch = doc.title.match(/<(.+?)>/);
+    if (titleMatch) name = titleMatch[1];
+  }
+
+  // --- CPU ---
+  let cpu = mapGet(map, 'тип цп', 'тип процессора', 'cpu type');
+  cpu = normalizeCPU(cpu);
+
+  // --- M/B ---
+  let mb = mapGet(map, 'системная плата', 'материнская плата', 'motherboard', 'system board');
+  mb = normalizeMB(mb);
+
+  // --- RAM ---
+  let ramRaw = mapGet(map, 'системная память', 'оперативная память', 'memory', 'физическая память');
+  const ram = normalizeRAM(ramRaw);
+
+  // --- SSD ---
+  let ssdRaw = mapGet(map, 'дисковый накопитель', 'накопитель', 'disk drive', 'жёсткий диск');
+  const ssd = normalizeStorage(ssdRaw);
+
+  // --- IP ---
+  let ip = mapGet(map, 'первичный адрес ip', 'ip-адрес', 'ip address', 'первичный ip');
+  // Если в строке несколько IP — берём первый
+  const ipMatch = ip.match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+  ip = ipMatch ? ipMatch[0] : ip;
+
+  // --- MAC ---
+  let mac = mapGet(map, 'первичный адрес mac', 'mac-адрес', 'mac address', 'первичный mac');
+  const macMatch = mac.match(/([0-9A-F]{2}[-:]){5}[0-9A-F]{2}/i);
+  mac = macMatch ? macMatch[0].toUpperCase().replace(/:/g,'-') : mac;
+
+  // --- Serial (серийник M/B из DMI) ---
+  let serial = mapGet(map, 'dmi серийный номер системной платы', 'dmi серийный номер', 'serial number');
+  if (isJunk(serial)) serial = '';
+
+  const record = { id: genId(), name, ip, mac, cpu, mb, ram, ssd, serial, inv: '' };
+
+  // Проверяем каждое поле
+  const suspectFields = [];
+  if (!name || isJunk(name))      suspectFields.push('Имя');
+  if (!ip   || !isValidIP(ip))    suspectFields.push('IP');
+  if (!mac  || !isValidMAC(mac))  suspectFields.push('MAC');
+  if (!cpu  || isJunk(cpu))       suspectFields.push('ЦП');
+  if (!mb   || isJunk(mb))        suspectFields.push('M/B');
+  if (!ram  || isJunk(ram))       suspectFields.push('RAM');
+  if (!ssd  || isJunk(ssd))       suspectFields.push('SSD');
+
+  if (suspectFields.length) {
+    record._suspect = true;
+    record._suspectFields = suspectFields;
+  }
+
+  return { record, suspectFields };
+}
+
+// Накопитель для превью перед подтверждением импорта
+let _aidaPendingRecords = [];
+
+function importAIDA(event) {
+  const files = Array.from(event.target.files);
+  if (!files.length) return;
+  event.target.value = '';
+
+  _aidaPendingRecords = [];
+  let processed = 0;
+
+  files.forEach(file => {
+    // Читаем как Windows-1251
+    const reader = new FileReader();
+    reader.onload = e => {
+      processed++;
+      try {
+        const text = e.target.result;
+        const { record, suspectFields } = parseAidaFile(text);
+        // Используем имя файла как fallback для имени компьютера
+        if (!record.name || isJunk(record.name)) {
+          record.name = file.name.replace(/\.htm[l]?$/i, '');
+          if (record._suspect && !record._suspectFields.includes('Имя')) {/* already there */}
+          // Имя взято из имени файла — не считаем подозрительным
+          record._suspectFields = (record._suspectFields || []).filter(f => f !== 'Имя');
+          if (!record._suspectFields.length) delete record._suspect;
+        }
+        _aidaPendingRecords.push(record);
+      } catch(err) {
+        _aidaPendingRecords.push({ _parseError: file.name });
+      }
+      if (processed === files.length) showAidaReview();
+    };
+    reader.readAsText(file, 'windows-1251');
+  });
+}
+
+function showAidaReview() {
+  const body = document.getElementById('aida-review-body');
+
+  if (!_aidaPendingRecords.length) {
+    toast('Нет файлов для импорта');
+    return;
+  }
+
+  const rows = _aidaPendingRecords.map((rec, i) => {
+    if (rec._parseError) {
+      return `<div style="background:var(--accent2-light);border:1px solid rgba(192,57,43,.3);border-radius:var(--radius);padding:8px 12px;margin-bottom:6px;font-size:12px;color:var(--accent2)">
+        ✕ Ошибка разбора файла: ${esc(rec._parseError)}
+      </div>`;
+    }
+    const alreadyExists = db.computers.find(c => c.name === rec.name);
+    const suspect = rec._suspect;
+    const fields = (rec._suspectFields || []).join(', ');
+
+    return `<div style="background:var(--surface);border:1px solid ${suspect ? '#e8c070' : 'var(--border)'};border-left:3px solid ${suspect ? 'var(--amber)' : 'var(--green)'};border-radius:var(--radius);padding:10px 12px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <strong style="font-size:13px">${esc(rec.name||'—')}</strong>
+        ${suspect ? `<span style="font-size:10px;color:var(--amber);background:var(--amber-light);border:1px solid #e8c070;border-radius:10px;padding:1px 7px">⚠ поля под вопросом</span>` : `<span style="font-size:10px;color:var(--green);background:var(--green-light);border:1px solid #a0d0b0;border-radius:10px;padding:1px 7px">✓ ОК</span>`}
+        ${alreadyExists ? `<span style="font-size:10px;color:var(--accent2);background:var(--accent2-light);border:1px solid rgba(192,57,43,.3);border-radius:10px;padding:1px 7px">уже есть в БД</span>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3px 12px;font-size:11px;color:var(--text2);font-family:var(--mono)">
+        <div><span style="color:var(--text3)">IP:</span> ${esc(rec.ip||'—')}</div>
+        <div><span style="color:var(--text3)">MAC:</span> ${esc(rec.mac||'—')}</div>
+        <div><span style="color:var(--text3)">ЦП:</span> ${esc(rec.cpu||'—')}</div>
+        <div><span style="color:var(--text3)">M/B:</span> ${esc(rec.mb||'—')}</div>
+        <div><span style="color:var(--text3)">RAM:</span> ${esc(rec.ram||'—')}</div>
+        <div><span style="color:var(--text3)">SSD:</span> ${esc(rec.ssd||'—')}</div>
+        <div><span style="color:var(--text3)">S/N:</span> ${esc(rec.serial||'—')}</div>
+      </div>
+      ${fields ? `<div style="font-size:11px;color:var(--amber);margin-top:5px">Требуют ручной проверки: ${esc(fields)}</div>` : ''}
+    </div>`;
+  });
+
+  const total = _aidaPendingRecords.filter(r => !r._parseError).length;
+  const suspectCount = _aidaPendingRecords.filter(r => r._suspect).length;
+  body.innerHTML = `<div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+    Файлов: <strong>${_aidaPendingRecords.length}</strong> &nbsp;·&nbsp;
+    Готовы к импорту: <strong>${total}</strong> &nbsp;·&nbsp;
+    Требуют проверки: <strong style="color:var(--amber)">${suspectCount}</strong>
+  </div>` + rows.join('');
+
+  document.getElementById('modal-aida-review').classList.add('open');
+}
+
+function confirmAidaImport() {
+  let added = 0;
+  let skipped = 0;
+  _aidaPendingRecords.forEach(rec => {
+    if (rec._parseError) return;
+    // Merge по имени компьютера (не по id, т.к. id генерируется каждый раз заново)
+    if (db.computers.find(c => c.name === rec.name)) {
+      skipped++;
+    } else {
+      db.computers.push(rec);
+      added++;
+    }
+  });
+  saveDB(); renderComputers(); updateCounts();
+  closeModal('aida-review');
+  _aidaPendingRecords = [];
+  toast(`Добавлено: ${added}${skipped ? ', пропущено (дубликат): ' + skipped : ''}`);
+}
+
+// ===== SUSPECT VIEW RENDER =====
+// renderSuspect вызывается из switchView выше
+
+// Close new modals on overlay click (bulk modals)
+['modal-bulk-computer','modal-bulk-printer','modal-aida-review'].forEach(id => {
+  const overlay = document.getElementById(id);
+  if (!overlay) return;
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) {
+      const type = id.replace('modal-', '');
+      closeModal(type);
+    }
+  });
+});
+
+// ===== INIT =====
+loadDB();
+updateCounts();
+renderComputers();
+updateSelectedInfo();
+</script>
+</body>
+</html>

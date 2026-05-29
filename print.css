@@ -1,0 +1,168 @@
+/* ============================================================
+   print.css — Label Manager
+   Стили HTML-этикеток для печати и предпросмотра.
+   ============================================================ */
+
+/* ----- ПЕРЕМЕННЫЕ ЭТИКЕТОК --------------------------------- */
+:root {
+  --lbl-width:       42mm;
+  --lbl-pad-x:       1.8mm;
+  --lbl-pad-y:       1.4mm;
+  --lbl-bar-width:   1.6mm;
+  --lbl-gap-col:     3mm;    /* зазор между этикетками по горизонтали */
+  --lbl-gap-row:     3mm;    /* зазор между рядами */
+
+  --lbl-font:        Tahoma, Arial, sans-serif;
+  --lbl-fs:          7.5pt;  /* основной текст */
+  --lbl-fs-title:    8.5pt;  /* имя / модель */
+  --lbl-fs-label:    6pt;    /* серая метка (IP, MAC, ЦП…) */
+
+  --lbl-col-label:   7mm;    /* ширина колонки меток */
+
+  /* Цвета компьютер */
+  --lc-pc:           #1a3a5c;
+  /* Цвета принтер */
+  --lc-pr:           #1a5c3a;
+
+  --lbl-divider:     #cccccc;
+  --lbl-text:        #1a1917;
+  --lbl-muted:       #444444;
+  --lbl-hint:        #888888;
+}
+
+/* ----- КОНТЕЙНЕР ЭТИКЕТОК (экран + печать) ----------------- */
+.print-labels-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--lbl-gap-row) var(--lbl-gap-col);
+  align-items: flex-start;  /* строки выравниваются по верхнему краю */
+}
+
+/* ----- БАЗОВАЯ ЭТИКЕТКА ------------------------------------ */
+.lbl {
+  width: var(--lbl-width);
+  font-family: var(--lbl-font);
+  font-size: var(--lbl-fs);
+  color: var(--lbl-text);
+  background: #fff;
+  border: 0.3mm solid #aaaaaa;
+  border-radius: 0.8mm;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+/* Цветная полоска слева */
+.lbl-bar {
+  width: var(--lbl-bar-width);
+  flex-shrink: 0;
+  background: var(--bar-color, #1a3a5c);
+}
+
+/* Основное тело этикетки */
+.lbl-body {
+  flex: 1;
+  padding: var(--lbl-pad-y) var(--lbl-pad-x) var(--lbl-pad-y) var(--lbl-pad-x);
+  min-width: 0;
+}
+
+/* ----- ЗАГОЛОВОК (Имя / Модель) ---------------------------- */
+.lbl-title {
+  font-size: var(--lbl-fs-title);
+  font-weight: bold;
+  color: var(--lbl-text);
+  margin-bottom: 0.8mm;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* ----- РАЗДЕЛИТЕЛЬ ----------------------------------------- */
+.lbl-divider {
+  border: none;
+  border-top: 0.25mm solid var(--lbl-divider);
+  margin: 1mm 0;
+}
+
+/* ----- ТАБЛИЦА ПОЛЕЙ --------------------------------------- */
+/*
+  Двухколоночная таблица:
+  левая (метка) — фиксированная ширина --lbl-col-label
+  правая (значение) — всё остальное, перенос текста автоматический
+*/
+.lbl-table {
+  display: table;
+  width: 100%;
+  border-collapse: collapse;
+}
+.lbl-row {
+  display: table-row;
+}
+.lbl-key {
+  display: table-cell;
+  width: var(--lbl-col-label);
+  font-size: var(--lbl-fs-label);
+  color: var(--lbl-hint);
+  vertical-align: top;
+  white-space: nowrap;
+  padding-right: 0.8mm;
+  line-height: 1.35;
+  padding-top: 0.1mm;
+}
+.lbl-val {
+  display: table-cell;
+  font-size: var(--lbl-fs);
+  color: var(--lbl-text);
+  vertical-align: top;
+  word-break: break-word;
+  line-height: 1.35;
+}
+.lbl-val.bold  { font-weight: bold; }
+.lbl-val.muted { color: var(--lbl-muted); }
+.lbl-val.accent-pc { color: var(--lc-pc); font-weight: bold; }
+.lbl-val.accent-pr { color: var(--lc-pr); font-weight: bold; }
+
+/* ----- МОДИФИКАТОРЫ ПО ТИПУ ------------------------------- */
+.lbl-pc { --bar-color: var(--lc-pc); border-color: #b0bec8; }
+.lbl-pr { --bar-color: var(--lc-pr); border-color: #a8c8b0; }
+
+/* ----- @media print --------------------------------------- */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  header,
+  .sidebar,
+  .toolbar,
+  .table-wrap,
+  .modal-overlay,
+  .preview-controls,
+  .preview-grid,
+  .toast,
+  .print-hint {
+    display: none !important;
+  }
+
+  body  { display: block; background: white; margin: 0; padding: 0; }
+  main  { display: block; padding: 0; overflow: visible; }
+
+  .view            { display: none !important; }
+  .view#view-print { display: block !important; }
+
+  .print-labels-container {
+    padding: 8mm 10mm;
+  }
+
+  .lbl {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+}
