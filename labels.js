@@ -85,12 +85,22 @@ function printerLabelHTML(p) {
 }
 
 // ===== PRINT VIEW =====
+function toggleBWMode(enabled) {
+  const container = document.getElementById('print-labels-container');
+  container.classList.toggle('bw', enabled);
+}
+
 function showPrintView() {
   if (selected.size === 0) {
     toast('Выберите хотя бы одну этикетку');
     return;
   }
+  // Сбрасываем чёрно-белый режим при каждом открытии
+  const bwCheckbox = document.getElementById('bw-mode');
+  if (bwCheckbox) bwCheckbox.checked = false;
+
   const container = document.getElementById('print-labels-container');
+  container.classList.remove('bw');
   container.innerHTML = '';
 
   selected.forEach(key => {

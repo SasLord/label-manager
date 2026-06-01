@@ -165,6 +165,11 @@
     <div class="preview-controls toolbar">
       <h2>Предпросмотр печати</h2>
       <button class="btn" onclick="switchView(lastView)">← Назад</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="bw-mode" onchange="toggleBWMode(this.checked)"
+          style="width:15px;height:15px;cursor:pointer;accent-color:#333">
+        Чёрно-белая печать
+      </label>
       <button class="btn btn-primary" onclick="window.print()">⎙ Распечатать / PDF</button>
     </div>
     <div class="print-hint" style="font-size:13px;color:var(--text2);margin-bottom:16px">

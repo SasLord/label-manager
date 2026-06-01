@@ -106,6 +106,14 @@ function selectAll(type) {
   updateBulkEditBtn(type);
 }
 
+function updateBulkEditBtn(type) {
+  const singType = type === 'computers' ? 'computer' : 'printer';
+  const btn = document.getElementById('bulk-edit-' + type);
+  if (!btn) return;
+  const hasSelected = [...selected].some(k => k.startsWith(singType + ':'));
+  btn.style.display = hasSelected ? '' : 'none';
+}
+
 function clearSelection() {
   selected.clear();
   renderComputers();

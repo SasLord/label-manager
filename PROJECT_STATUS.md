@@ -18,15 +18,21 @@
 
 ## Файловая структура
 
-Все три файла лежат в **одной папке**:
+Все файлы лежат в **одной папке**:
 
 ```
-label-manager.html   — весь HTML + JavaScript (база, CRUD, генераторы этикеток)
+label-manager.html   — HTML-разметка всего приложения (views, модалы, тулбары)
 global.css           — стили интерфейса приложения (layout, таблицы, формы, модалы)
 print.css            — стили HTML-этикеток (размеры в mm, печать, @media print)
+app.js               — данные, навигация, выбор, рендер таблиц, утилиты, инит
+labels.js            — генераторы HTML-этикеток, логика вида печати
+crud.js              — CRUD компьютеров и принтеров
+import-export.js     — JSON / AIDA64, массовое редактирование, «Требуют проверки»
 ```
 
 Никаких зависимостей, серверов, Node.js — открыть `label-manager.html` в Chrome/Edge.
+
+> **Важно:** JS-файлы подключаются в строгом порядке — `app.js` → `labels.js` → `crud.js` → `import-export.js`.
 
 ---
 
@@ -104,6 +110,16 @@ print.css            — стили HTML-этикеток (размеры в mm,
 - Для PDF: «Сохранить как PDF» в диалоге печати.
 - `print-color-adjust: exact` — обязательно для цветных полосок.
 
+### Чёрно-белая печать
+- В режиме предпросмотра печати есть чекбокс **«Чёрно-белая печать»**.
+- При включении на контейнер `#print-labels-container` навешивается класс `.bw`.
+- Класс `.bw` в `print.css` переопределяет все CSS-переменные цветов в чёрный/серый:
+  - `--lc-pc`, `--lc-pr` → `#000000`
+  - `--lbl-text` → `#000000`, `--lbl-muted` → `#000000`, `--lbl-hint` → `#555555`
+  - Полоска `.lbl-bar` → чёрная, рамки → серые (`#999999`)
+- Реализовано в `labels.js` функцией `toggleBWMode(enabled)`.
+- При каждом открытии вида печати чекбокс и класс сбрасываются.
+
 ---
 
 ## Реализованные типы устройств
@@ -127,19 +143,6 @@ print.css            — стили HTML-этикеток (размеры в mm,
 │▌ S/N  │ 07D4822_O31E344009               │
 │▌ ИНВ  │ SMU-31-00000123                  │  ← bold accent-pc
 └──────────────────────────────────────────┘
-```
-
-Пример данных:
-```
-Имя: 1-10-5
-IP: 192.168.11.74
-MAC: D8-43-AE-78-66-E2
-ЦП: Intel Core i5-12400, 4200 MHz
-M/B: MSI Pro H610M-E DDR4 (MS-7D48)
-RAM: 16 Gb
-SSD: 512 Gb
-Серийный №: 07D4822_O31E344009
-Инвентарный №: SMU-31-00000123
 ```
 
 ### Принтер (`printers`)
@@ -166,6 +169,7 @@ SSD: 512 Gb
 
 **Сайдбар:**
 - Навигация по типам устройств (с счётчиком записей)
+- Фильтр «Требуют проверки» (записи с флагом `_suspect` после импорта AIDA)
 - Блок «Выбрано» — показывает сколько этикеток выбрано и каких типов
 - Кнопка «Снять выделение»
 - Кнопка «Очистить всё» (с подтверждением)
@@ -173,21 +177,110 @@ SSD: 512 Gb
 **Основная область:**
 - Таблица с чекбоксами (клик по строке = выбор)
 - Мастер-чекбокс в шапке таблицы
-- Кнопки «Выбрать все» и «+ Добавить»
+- Кнопки «Выбрать все», «✏ Изменить выбранные» (видна при наличии выбранных), «+ Добавить»
 - Редактирование (✏) и удаление (✕) каждой записи
 
 **Хедер:**
 - Экспорт JSON / Импорт JSON
-- Кнопка «Печать выбранных» → переход в режим предпросмотра
+- Импорт AIDA64 (`.htm/.html`, множественный выбор)
+- Кнопка «⎙ Печать выбранных» → переход в режим предпросмотра
 
-**Режим печати (view-print):**
+**Режим печати (`view-print`):**
 - Те же HTML-этикетки, что идут на принтер
+- Чекбокс **«Чёрно-белая печать»** — сбрасывается при каждом открытии
 - Кнопки «← Назад» и «⎙ Распечатать / PDF»
 - Подсказка с настройками диалога печати
 
-**Модальные окна:** форма добавления/редактирования, закрываются кликом по оверлею.
+**Модальные окна:** форма добавления/редактирования с навигацией ← → между записями и кнопкой «💾 Сохранить» без закрытия. Закрываются по Escape или клику на оверлей.
+
+**Массовое редактирование:** выбрать несколько записей → кнопка «✏ Изменить выбранные» → модал с общими полями (пустые поля не затирают значения).
 
 **Toast-уведомления:** появляются внизу справа на 2.2 сек.
+
+---
+
+## Структура JS-кода (по файлам)
+
+### `app.js`
+```
+// ===== DATA =====
+  db, selected (Set), lastView
+  loadDB(), saveDB(), genId()
+
+// ===== NAVIGATION =====
+  switchView(name)
+
+// ===== COUNTS =====
+  updateCounts()
+
+// ===== SELECTION =====
+  toggleSelect(type, id)
+  updateRowHighlight(type, id)
+  updateSelectedInfo()
+  updateBulkEditBtn(type)   ← показывает/скрывает кнопку «Изменить выбранные»
+  toggleAll(type, masterCb)
+  selectAll(type)
+  clearSelection()
+
+// ===== RENDER TABLES =====
+  renderComputers()
+  renderPrinters()
+
+// ===== UTILS =====
+  v(id)      — значение input по id
+  esc(s)     — экранирование HTML
+  toast(msg)
+
+// ===== MODAL INFRASTRUCTURE =====
+  closeModal(type)
+  — Escape и клик по оверлею закрывают открытый модал
+
+// ===== INIT =====
+  loadDB(), updateCounts(), renderComputers(), updateSelectedInfo()
+```
+
+### `labels.js`
+```
+h(s)                    — экранирование HTML для этикеток
+row(key, val, valClass) — строка таблицы этикетки
+computerLabelHTML(c)    — HTML-этикетка компьютера
+printerLabelHTML(p)     — HTML-этикетка принтера
+
+toggleBWMode(enabled)   — навешивает/снимает класс .bw на контейнер
+showPrintView()         — сбрасывает BW-режим, рендерит этикетки, переходит на view-print
+```
+
+### `crud.js`
+```
+openModal(type)
+clearForm(type)
+
+// Computers
+saveComputer(closeAfter)
+editComputer(id)
+deleteComputer(id)
+navComputer(dir)        — навигация ← → в модале
+
+// Printers
+savePrinter(closeAfter)
+editPrinter(id)
+deletePrinter(id)
+navPrinter(dir)
+
+// Bulk edit
+openBulkEdit(type)
+saveBulkEdit(type)
+```
+
+### `import-export.js`
+```
+exportJSON()
+importJSON(event)
+confirmClearAll()
+importAIDA(event)         — парсинг .htm-отчётов AIDA64, выставляет _suspect при проблемах
+confirmAidaImport()       — применяет результаты AIDA-импорта после проверки
+renderSuspect()           — рендер раздела «Требуют проверки»
+```
 
 ---
 
@@ -198,9 +291,10 @@ SSD: 512 Gb
 1. Добавить пункт в сайдбар (HTML)
 2. Добавить таблицу с колонками (HTML)
 3. Добавить модальную форму (HTML)
-4. Добавить CRUD-функции (JS)
-5. Добавить генератор этикетки `xxxxxLabelHTML()` (JS)
-6. Добавить поле массива в `db` и `loadDB()`
+4. Добавить CRUD-функции в `crud.js`
+5. Добавить генератор этикетки `xxxxxLabelHTML()` в `labels.js`
+6. Добавить поле массива в `db` и `loadDB()` в `app.js`
+7. Добавить CSS-переменную цвета и классы в `print.css`
 
 Предполагаемые типы:
 - **Мониторы** — модель, серийный №, инвентарный №, диагональ, разрешение
@@ -235,74 +329,9 @@ SSD: 512 Gb
 
 ---
 
-## Структура JS-кода (`label-manager.html`)
-
-```
-// ===== DATA =====
-  db, selected (Set), lastView
-  loadDB(), saveDB(), genId()
-
-// ===== NAVIGATION =====
-  switchView(name)
-
-// ===== COUNTS =====
-  updateCounts()
-
-// ===== SELECTION =====
-  toggleSelect(type, id)
-  updateRowHighlight(type, id)
-  updateSelectedInfo()
-  toggleAll(type, masterCb)
-  selectAll(type)
-  clearSelection()
-
-// ===== RENDER TABLES =====
-  renderComputers()
-  renderPrinters()
-
-// ===== MODAL =====
-  openModal(type)
-  closeModal(type)
-  clearForm(type)
-
-// ===== COMPUTERS CRUD =====
-  saveComputer()
-  editComputer(id)
-  deleteComputer(id)
-
-// ===== PRINTERS CRUD =====
-  savePrinter()
-  editPrinter(id)
-  deletePrinter(id)
-
-// ===== LABEL HTML GENERATORS =====
-  h(s)                    — экранирование HTML
-  row(key, val, valClass) — строка таблицы этикетки
-  computerLabelHTML(c)    — HTML-этикетка компьютера
-  printerLabelHTML(p)     — HTML-этикетка принтера
-
-// ===== PRINT VIEW =====
-  showPrintView()
-
-// ===== IMPORT / EXPORT =====
-  exportJSON()
-  importJSON(event)
-  confirmClearAll()
-
-// ===== UTILS =====
-  v(id)      — значение input по id
-  esc(s)     — экранирование HTML (старый вариант, используется в renderComputers/renderPrinters)
-  toast(msg)
-
-// ===== INIT =====
-  loadDB(), updateCounts(), renderComputers(), updateSelectedInfo()
-```
-
----
-
 ## Как добавить новый тип устройства (инструкция)
 
-### 1. Сайдбар (HTML)
+### 1. Сайдбар (HTML, `label-manager.html`)
 ```html
 <div class="nav-item" onclick="switchView('monitors')" id="nav-monitors">
   <span class="nav-icon">🖵</span> Мониторы
@@ -310,12 +339,13 @@ SSD: 512 Gb
 </div>
 ```
 
-### 2. View с таблицей (HTML)
+### 2. View с таблицей (HTML, `label-manager.html`)
 ```html
 <div class="view" id="view-monitors">
   <div class="toolbar">
     <h2>Мониторы</h2>
     <button class="btn" onclick="selectAll('monitors')">Выбрать все</button>
+    <button class="btn" id="bulk-edit-monitors" onclick="openBulkEdit('monitor')" style="display:none">✏ Изменить выбранные</button>
     <button class="btn btn-primary" onclick="openModal('monitor')">+ Добавить</button>
   </div>
   <div class="table-wrap">
@@ -335,7 +365,7 @@ SSD: 512 Gb
 </div>
 ```
 
-### 3. Модальная форма (HTML)
+### 3. Модальная форма (HTML, `label-manager.html`)
 ```html
 <div class="modal-overlay" id="modal-monitor">
   <div class="modal">
@@ -348,19 +378,28 @@ SSD: 512 Gb
       </div>
       <!-- остальные поля -->
     </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal('monitor')">Отмена</button>
-      <button class="btn btn-primary" onclick="saveMonitor()">Сохранить</button>
+    <div class="modal-actions" id="modal-monitor-footer">
+      <div class="footer-nav" style="display:none;gap:4px;margin-right:auto;align-items:center">
+        <button class="btn btn-sm" id="btn-monitor-prev" onclick="navMonitor(-1)">← Пред.</button>
+        <button class="btn btn-sm btn-primary" onclick="saveMonitor(false)">💾 Сохранить</button>
+        <button class="btn btn-sm" id="btn-monitor-next" onclick="navMonitor(1)">След. →</button>
+      </div>
+      <div class="footer-main">
+        <button class="btn" onclick="closeModal('monitor')">Отмена</button>
+        <button class="btn btn-primary" onclick="saveMonitor(true)">Сохранить и закрыть</button>
+      </div>
     </div>
   </div>
 </div>
 ```
 
-### 4. JS: инициализация
-В `loadDB()` добавить: `if (!db.monitors) db.monitors = [];`  
-В `updateCounts()` добавить: `document.getElementById('count-monitors').textContent = db.monitors.length;`
+### 4. `app.js` — инициализация и рендер
+В `loadDB()`: `if (!db.monitors) db.monitors = [];`  
+В `updateCounts()`: `document.getElementById('count-monitors').textContent = db.monitors.length;`  
+В `switchView()`: `if (name === 'monitors') renderMonitors();`  
+Добавить `renderMonitors()` по образцу `renderComputers()`.
 
-### 5. JS: генератор этикетки
+### 5. `labels.js` — генератор этикетки
 ```js
 function monitorLabelHTML(m) {
   return `
@@ -377,13 +416,22 @@ function monitorLabelHTML(m) {
 </div>`.trim();
 }
 ```
+В `showPrintView()` добавить ветку `else if (type === 'monitor') { ... }`.
 
-### 6. CSS для нового типа (в `print.css`)
+### 6. `crud.js` — CRUD-функции
+По образцу `saveComputer` / `editComputer` / `deleteComputer` / `navComputer`.
+
+### 7. `print.css` — цвет нового типа
 ```css
---lc-mn: #7a4a0a;   /* цвет монитора — янтарный */
+/* в :root */
+--lc-mn: #7a4a0a;
 
+/* модификаторы */
 .lbl-mn { --bar-color: var(--lc-mn); border-color: #c8a878; }
 .lbl-val.accent-mn { color: var(--lc-mn); font-weight: bold; }
+
+/* чёрно-белый режим — добавить в блок .bw */
+.bw .lbl-mn { --bar-color: #000000; border-color: #999999; }
 ```
 
 ---
