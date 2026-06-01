@@ -210,6 +210,7 @@ main {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  text-wrap: pretty;
 }
 .btn:hover { background: var(--surface2); border-color: var(--border2); }
 
@@ -371,11 +372,36 @@ tr.selected:hover td       { background: #dce8f0; }
 
 .modal-actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
   margin-top: 20px;
   padding-top: 16px;
   border-top: 1px solid var(--border);
+}
+
+/* Кнопки навигации в левой части футера модала редактирования */
+.footer-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: auto;    /* прижимает .footer-main вправо */
+}
+.footer-nav .btn-sm { min-width: 68px; justify-content: center; }
+.footer-nav .btn { min-height: 48px; }
+.footer-main {
+  display: flex;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+/* Разделитель между группами кнопок в навигационном футере */
+.footer-nav-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
 }
 
 /* ----- PRINT PREVIEW (экран) ------------------------------- */
