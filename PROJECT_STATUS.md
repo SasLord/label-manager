@@ -25,14 +25,16 @@ label-manager.html   — HTML-разметка всего приложения (
 global.css           — стили интерфейса приложения (layout, таблицы, формы, модалы)
 print.css            — стили HTML-этикеток (размеры в mm, печать, @media print)
 app.js               — данные, навигация, выбор, рендер таблиц, утилиты, инит
-labels.js            — генераторы HTML-этикеток, логика вида печати
+labels.js            — генераторы HTML-этикеток, QR-код, логика вида печати
 crud.js              — CRUD компьютеров и принтеров
 import-export.js     — JSON / AIDA64, массовое редактирование, «Требуют проверки»
+qrcode.js            — офлайн-библиотека qrcode-generator (Kazuhiko Arase, ~55 КБ)
 ```
 
 Никаких зависимостей, серверов, Node.js — открыть `label-manager.html` в Chrome/Edge.
 
-> **Важно:** JS-файлы подключаются в строгом порядке — `app.js` → `labels.js` → `crud.js` → `import-export.js`.
+> **Важно:** JS-файлы подключаются в строгом порядке —  
+> `qrcode.js` → `app.js` → `labels.js` → `crud.js` → `import-export.js`.
 
 ---
 
@@ -73,6 +75,8 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
     </div>
     <hr class="lbl-divider">
     ...
+    <!-- QR-код (если включён) -->
+    <div class="lbl-qr" style="width:20mm;height:20mm"><!-- SVG --></div>
   </div>
 </div>
 ```
@@ -110,15 +114,32 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
 - Для PDF: «Сохранить как PDF» в диалоге печати.
 - `print-color-adjust: exact` — обязательно для цветных полосок.
 
-### Чёрно-белая печать
-- В режиме предпросмотра печати есть чекбокс **«Чёрно-белая печать»**.
-- При включении на контейнер `#print-labels-container` навешивается класс `.bw`.
+### Режимы печати (чекбоксы в тулбаре)
+
+Оба режима управляются объектом `printOptions = { bw: false, qr: false }` в `labels.js`.  
+При каждом открытии вида печати оба сбрасываются в `false`.  
+Режимы независимы и работают в любой комбинации.
+
+**Чёрно-белая печать (`bw`):**
+- Чекбокс «Чёрно-белая печать» навешивает класс `.bw` на `#print-labels-container`.
 - Класс `.bw` в `print.css` переопределяет все CSS-переменные цветов в чёрный/серый:
   - `--lc-pc`, `--lc-pr` → `#000000`
-  - `--lbl-text` → `#000000`, `--lbl-muted` → `#000000`, `--lbl-hint` → `#555555`
+  - `--lbl-text`, `--lbl-muted` → `#000000`, `--lbl-hint` → `#555555`
   - Полоска `.lbl-bar` → чёрная, рамки → серые (`#999999`)
-- Реализовано в `labels.js` функцией `toggleBWMode(enabled)`.
-- При каждом открытии вида печати чекбокс и класс сбрасываются.
+- Функция: `toggleBWMode(enabled)`.
+
+**QR-код (`qr`):**
+- Чекбокс «QR-код» перерендеривает все этикетки с QR-кодом внизу каждой.
+- Функция: `toggleQRMode(enabled)` → вызывает `_rerenderPrintLabels()`.
+- QR генерируется через `makeQRSvg(data, sizeMm)`:
+  - Использует `qrcode-generator` (`qrcode.js`), работает офлайн.
+  - `typeNumber=0` (авто), `errorCorrection='M'`, `scalable:true` (SVG без px-атрибутов).
+  - Размер задаётся инлайн: `style="width:20mm;height:20mm"`.
+- Данные кодируются как компактный JSON с короткими ключами:
+  - Компьютер: `{"n","ip","mac","cpu","ram","ssd","sn","inv"}`
+  - Принтер: `{"model","n","ip","sn","inv"}`
+- При сканировании телефоном — JSON читается нативно в браузере без приложений.
+- CSS-класс `.lbl-qr` в `print.css`: блок снизу, SVG растягивается на 100%.
 
 ---
 
@@ -142,6 +163,7 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
 │▌ ─────────────────────────────────────── │
 │▌ S/N  │ 07D4822_O31E344009               │
 │▌ ИНВ  │ SMU-31-00000123                  │  ← bold accent-pc
+│▌ [QR-код 20×20mm, если включён]         │
 └──────────────────────────────────────────┘
 ```
 
@@ -158,6 +180,7 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
 │▌ ─────────────────────────────────────── │
 │▌ S/N  │ R5M9731347                       │
 │▌ ИНВ  │ SMU-31-00000053                  │  ← bold accent-pr
+│▌ [QR-код 20×20mm, если включён]         │
 └──────────────────────────────────────────┘
 ```
 
@@ -187,7 +210,9 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
 
 **Режим печати (`view-print`):**
 - Те же HTML-этикетки, что идут на принтер
-- Чекбокс **«Чёрно-белая печать»** — сбрасывается при каждом открытии
+- Чекбокс **«Чёрно-белая печать»** — при включении меняет цвета через класс `.bw`
+- Чекбокс **«QR-код»** — при включении перерендеривает этикетки с QR снизу
+- Оба чекбокса сбрасываются при каждом открытии вида печати
 - Кнопки «← Назад» и «⎙ Распечатать / PDF»
 - Подсказка с настройками диалога печати
 
@@ -241,13 +266,27 @@ import-export.js     — JSON / AIDA64, массовое редактирова�
 
 ### `labels.js`
 ```
-h(s)                    — экранирование HTML для этикеток
-row(key, val, valClass) — строка таблицы этикетки
-computerLabelHTML(c)    — HTML-этикетка компьютера
-printerLabelHTML(p)     — HTML-этикетка принтера
+// ===== УТИЛИТЫ ЭТИКЕТОК =====
+  h(s)                    — экранирование HTML для этикеток
+  row(key, val, valClass) — строка таблицы этикетки
 
-toggleBWMode(enabled)   — навешивает/снимает класс .bw на контейнер
-showPrintView()         — сбрасывает BW-режим, рендерит этикетки, переходит на view-print
+// ===== QR-КОД =====
+  makeQRSvg(data, sizeMm)   — SVG через qrcode-generator, scalable:true
+  computerQRData(c)          — компактный JSON для QR компьютера
+  printerQRData(p)           — компактный JSON для QR принтера
+
+// ===== ГЕНЕРАТОРЫ ЭТИКЕТОК =====
+  computerLabelHTML(c)    — HTML-этикетка компьютера (с QR если printOptions.qr)
+  printerLabelHTML(p)     — HTML-этикетка принтера (с QR если printOptions.qr)
+
+// ===== PRINT OPTIONS =====
+  printOptions            — { bw: false, qr: false }
+
+// ===== PRINT VIEW =====
+  toggleBWMode(enabled)       — класс .bw на контейнере
+  toggleQRMode(enabled)       — обновляет printOptions.qr, вызывает _rerenderPrintLabels()
+  _rerenderPrintLabels()      — перерендер этикеток без смены вида
+  showPrintView()             — сброс обоих режимов, рендер, switchView('print')
 ```
 
 ### `crud.js`
@@ -292,9 +331,11 @@ renderSuspect()           — рендер раздела «Требуют пр�
 2. Добавить таблицу с колонками (HTML)
 3. Добавить модальную форму (HTML)
 4. Добавить CRUD-функции в `crud.js`
-5. Добавить генератор этикетки `xxxxxLabelHTML()` в `labels.js`
+5. Добавить генератор этикетки `xxxxxLabelHTML()` в `labels.js` (с поддержкой QR)
 6. Добавить поле массива в `db` и `loadDB()` в `app.js`
 7. Добавить CSS-переменную цвета и классы в `print.css`
+8. Добавить функцию `xxxxxQRData()` в `labels.js`
+9. Добавить ветку в `_rerenderPrintLabels()` и `showPrintView()`
 
 Предполагаемые типы:
 - **Мониторы** — модель, серийный №, инвентарный №, диагональ, разрешение
@@ -326,6 +367,8 @@ renderSuspect()           — рендер раздела «Требуют пр�
 5. **Прежняя SVG-попытка провалилась** по двум причинам: (а) координаты в px не соответствовали реальным mm при печати; (б) `font-size` в SVG-единицах без `pt` рендерился мелко. HTML-подход решил обе проблемы.
 
 6. **Предпросмотр на экране** показывает те же HTML-блоки, что идут на печать — никакого отдельного "превью". Что видишь на экране в режиме предпросмотра, то и напечатается (с поправкой на п.1).
+
+7. **QR-код и ширина этикетки.** Код 20×20mm центрируется по горизонтали внутри `.lbl-body`. При включении QR высота этикетки увеличивается примерно на 22mm — на листе A4 в ряд всё равно помещается 4 этикетки.
 
 ---
 
@@ -399,9 +442,18 @@ renderSuspect()           — рендер раздела «Требуют пр�
 В `switchView()`: `if (name === 'monitors') renderMonitors();`  
 Добавить `renderMonitors()` по образцу `renderComputers()`.
 
-### 5. `labels.js` — генератор этикетки
+### 5. `labels.js` — генератор этикетки и QR-данные
 ```js
+function monitorQRData(m) {
+  const obj = {};
+  if (m.model)  obj.model = m.model;
+  if (m.serial) obj.sn    = m.serial;
+  if (m.inv)    obj.inv   = m.inv;
+  return JSON.stringify(obj);
+}
+
 function monitorLabelHTML(m) {
+  const qr = printOptions.qr ? makeQRSvg(monitorQRData(m), 20) : '';
   return `
 <div class="lbl lbl-mn">
   <div class="lbl-bar"></div>
@@ -412,11 +464,19 @@ function monitorLabelHTML(m) {
       ${row('S/N', m.serial || '')}
       ${row('ИНВ', m.inv    || '', 'bold accent-mn')}
     </div>
+    ${qr}
   </div>
 </div>`.trim();
 }
 ```
-В `showPrintView()` добавить ветку `else if (type === 'monitor') { ... }`.
+В `_rerenderPrintLabels()` и `showPrintView()` добавить ветку:
+```js
+else if (type === 'monitor') {
+  const item = db.monitors.find(x => x.id === id);
+  if (!item) return;
+  html = monitorLabelHTML(item);
+}
+```
 
 ### 6. `crud.js` — CRUD-функции
 По образцу `saveComputer` / `editComputer` / `deleteComputer` / `navComputer`.

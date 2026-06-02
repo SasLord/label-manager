@@ -170,6 +170,11 @@
           style="width:15px;height:15px;cursor:pointer;accent-color:#333">
         Чёрно-белая печать
       </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="qr-mode" onchange="toggleQRMode(this.checked)"
+          style="width:15px;height:15px;cursor:pointer;accent-color:#333">
+        QR-код
+      </label>
       <button class="btn btn-primary" onclick="window.print()">⎙ Распечатать / PDF</button>
     </div>
     <div class="print-hint" style="font-size:13px;color:var(--text2);margin-bottom:16px">
@@ -371,6 +376,7 @@
 <div class="toast" id="toast"></div>
 
 <!-- ===== SCRIPTS (порядок важен) ===== -->
+<script src="qrcode.js"></script>
 <script src="app.js"></script>
 <script src="labels.js"></script>
 <script src="crud.js"></script>

@@ -127,22 +127,6 @@
 .lbl-pc { --bar-color: var(--lc-pc); border-color: #b0bec8; }
 .lbl-pr { --bar-color: var(--lc-pr); border-color: #a8c8b0; }
 
-/* ----- ЧЁРНО-БЕЛЫЙ РЕЖИМ ---------------------------------- */
-/*
-  Класс .bw применяется к #print-labels-container.
-  Переопределяет все акцентные цвета и полоску в чёрный/серый.
-*/
-.bw {
-  --lc-pc: #000000;
-  --lc-pr: #000000;
-  --lbl-text:  #000000;
-  --lbl-muted: #000000;
-  --lbl-hint:  #555555;
-  --lbl-divider: #999999;
-}
-.bw .lbl-pc { --bar-color: #000000; border-color: #999999; }
-.bw .lbl-pr { --bar-color: #000000; border-color: #999999; }
-
 /* ----- @media print --------------------------------------- */
 @media print {
   * {
@@ -182,3 +166,32 @@
     margin: 0;
   }
 }
+
+/* ----- QR-КОД -------------------------------------------- */
+/*
+  .lbl-qr оборачивает SVG-тег, сгенерированный qrcode-generator.
+  Размер задаётся инлайн через style="width:Xmm;height:Xmm".
+*/
+.lbl-qr {
+  display: block;
+  margin-top: 1.5mm;
+  margin-left: auto;
+  margin-right: auto;
+}
+.lbl-qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ----- ЧЁРНО-БЕЛЫЙ РЕЖИМ ---------------------------------- */
+.bw {
+  --lc-pc: #000000;
+  --lc-pr: #000000;
+  --lbl-text:  #000000;
+  --lbl-muted: #000000;
+  --lbl-hint:  #555555;
+  --lbl-divider: #999999;
+}
+.bw .lbl-pc { --bar-color: #000000; border-color: #999999; }
+.bw .lbl-pr { --bar-color: #000000; border-color: #999999; }
